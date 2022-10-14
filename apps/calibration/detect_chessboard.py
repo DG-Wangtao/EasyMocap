@@ -14,14 +14,18 @@ import numpy as np
 from os.path import join
 import cv2
 import os
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
+pools = ThreadPoolExecutor(max_workers=8)
 
 def create_chessboard(path, pattern, gridSize, ext):
     print('Create chessboard {}'.format(pattern))
     keypoints3d = getChessboard3d(pattern, gridSize=gridSize)
     keypoints2d = np.zeros((keypoints3d.shape[0], 3))
     imgnames = getFileList(path, ext=ext)
+    keypoints3dlist = keypoints3d.astype(float).round(3).tolist()
     template = {
-        'keypoints3d': keypoints3d.tolist(),
+        'keypoints3d': keypoints3dlist,
         'keypoints2d': keypoints2d.tolist(),
         'visited': False
     }
@@ -36,6 +40,21 @@ def create_chessboard(path, pattern, gridSize, ext):
         else:
             save_json(annname, template)
 
+
+# detect the 2d chessboard
+def detect_chessboard_item(path, out, imgname, annotname, pattern):
+    img = cv2.imread(imgname)
+    annots = read_json(annotname)
+    show = findChessboardCorners(img, annots, pattern)
+    save_json(annotname, annots)
+    if show is None:
+        if args.debug:
+            print('Cannot find {}'.format(imgname))
+        return
+    outname = join(out, imgname.replace(path + '/images/', ''))
+    os.makedirs(os.path.dirname(outname), exist_ok=True)
+    cv2.imwrite(outname, show)
+
 def detect_chessboard(path, out, pattern, gridSize, args):
     create_chessboard(path, pattern, gridSize, ext=args.ext)
     dataset = ImageFolder(path, annot='chessboard', ext=args.ext)
@@ -44,20 +63,15 @@ def detect_chessboard(path, out, pattern, gridSize, args):
         trange = range(len(dataset))
     else:
         trange = tqdm(range(len(dataset)))
+
+    task_list = []
     for i in trange:
         imgname, annotname = dataset[i]
-        # detect the 2d chessboard
-        img = cv2.imread(imgname)
-        annots = read_json(annotname)
-        show = findChessboardCorners(img, annots, pattern)
-        save_json(annotname, annots)
-        if show is None:
-            if args.debug:
-                print('Cannot find {}'.format(imgname))
-            continue
-        outname = join(out, imgname.replace(path + '/images/', ''))
-        os.makedirs(os.path.dirname(outname), exist_ok=True)
-        cv2.imwrite(outname, show)
+        # detect_chessboard_item(path, out, imgname, annotname, pattern)
+        task_list.append(pools.submit(detect_chessboard_item, path, out, imgname, annotname, pattern))
+
+    for result in as_completed(task_list):
+        result.result()
 
 def detect_chessboard_sequence(path, out, pattern, gridSize, args):
     create_chessboard(path, pattern, gridSize, ext=args.ext)

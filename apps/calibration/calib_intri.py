@@ -19,6 +19,10 @@ from glob import glob
 from easymocap.annotator.chessboard import get_lines_chessboard
 from tqdm import tqdm
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
+pools = ThreadPoolExecutor(max_workers=8)
+
 def read_chess(chessname):
     data = read_json(chessname)
     k3d = np.array(data['keypoints3d'], dtype=np.float32)
@@ -108,10 +112,24 @@ def calib_intri_share(path, image, ext):
             }
         write_intri(join(path, 'output', 'intri.yml'), cameras)
 
+
+def calib_intri_item(k3ds, k2ds, cam, gray, cameras):
+    print('>> Camera {}: {:3d} frames'.format(cam, len(k2ds)))
+    with Timer('calibrate'):
+        ret, K, dist, rvecs, tvecs = cv2.calibrateCamera(
+            k3ds, k2ds, gray.shape[::-1], None, None,
+            flags=cv2.CALIB_FIX_K3)
+        cameras[cam] = {
+            'K': K,
+            'dist': dist  # dist: (1, 5)
+        }
+
+
 def calib_intri(path, image, ext):
     camnames = sorted(os.listdir(join(path, image)))
     camnames = [cam for cam in camnames if os.path.isdir(join(path, image, cam))]
     cameras = {}
+    task_list = []
     for ic, cam in enumerate(camnames):
         imagenames = sorted(glob(join(path, image, cam, '*'+ext)))
         chessnames = sorted(glob(join(path, 'chessboard', cam, '*.json')))
@@ -119,15 +137,11 @@ def calib_intri(path, image, ext):
         k3ds = k3ds_
         k2ds = [np.ascontiguousarray(k2d[:, :-1]) for k2d in k2ds_]
         gray = cv2.imread(imagenames[0], 0)
-        print('>> Camera {}: {:3d} frames'.format(cam, len(k2ds)))
-        with Timer('calibrate'):
-            ret, K, dist, rvecs, tvecs = cv2.calibrateCamera(
-                k3ds, k2ds, gray.shape[::-1], None, None,
-                flags=cv2.CALIB_FIX_K3)
-            cameras[cam] = {
-                'K': K,
-                'dist': dist  # dist: (1, 5)
-            }
+        task_list.append(pools.submit(calib_intri_item, k3ds, k2ds, cam, gray, cameras))
+
+    for result in as_completed(task_list):
+        result.result()
+
     write_intri(join(path, 'output', 'intri.yml'), cameras)
 
 

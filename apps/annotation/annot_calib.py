@@ -24,7 +24,7 @@ class Matcher:
     def __init__(self, path, mode, args) -> None:
         if mode == 'chessboard':
             pattern = args.pattern
-            lines, lines_color = get_lines_chessboard((9, 6))
+            lines, lines_color = get_lines_chessboard((pattern[0], pattern[1]))
             self.nJoints = pattern[0]*pattern[1]
         else:
             annots = read_json(join(path, 'calib.json'))

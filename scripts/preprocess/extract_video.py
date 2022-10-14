@@ -11,8 +11,10 @@ from os.path import join
 from tqdm import tqdm
 from glob import glob
 import numpy as np
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 mkdir = lambda x: os.makedirs(x, exist_ok=True)
+pools = ThreadPoolExecutor(max_workers=8)
 
 def extract_video(videoname, path, start, end, step):
     base = os.path.basename(videoname).replace('.mp4', '')
@@ -32,6 +34,7 @@ def extract_video(videoname, path, start, end, step):
         if cnt < start:continue
         if cnt >= end:break
         if not ret:continue
+        if cnt % step != 0: continue
         cv2.imwrite(join(outpath, '{:06d}.jpg'.format(cnt)), frame)
     video.release()
     return base
@@ -256,9 +259,13 @@ if __name__ == "__main__":
         if len(subs_videos) > len(subs_image):
             videos = sorted(glob(join(args.path, 'videos', '*.mp4')))
             subs = []
+            task_list = []
             for video in videos:
-                basename = extract_video(video, args.path, start=args.start, end=args.end, step=args.step)
-                subs.append(basename)
+                task_list.append(pools.submit(extract_video, video, args.path, args.start, args.end, args.step))
+                # basename = extract_video(video, args.path, start=args.start, end=args.end, step=args.step)
+                # subs.append(basename)
+            for result in as_completed(task_list):
+                subs.append(result.result())
         else:
             subs = sorted(os.listdir(image_path))
         print('cameras: ', ' '.join(subs))
