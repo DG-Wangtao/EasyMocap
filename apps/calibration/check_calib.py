@@ -157,6 +157,7 @@ def check_scene(path, out, points3d, lines):
     cameras = read_camera(join(out, 'intri.yml'), join(out, 'extri.yml'))
     cameras.pop('basenames')
     nf = 0
+    os.makedirs(out + "/output", exist_ok=True)
     for cam, camera in cameras.items():
         imgname = join(path, 'images', cam, '{:06d}.jpg'.format(nf))
         assert os.path.exists(imgname), imgname
@@ -166,6 +167,8 @@ def check_scene(path, out, points3d, lines):
         plot_points2d(img, kpts_repro, lines, col=(0, 0, 255), lw=1, putText=True)
         cv2.imshow('vis', img)
         cv2.waitKey(0)
+        outname = join(out,  "output/" + cam + '.jpg')
+        cv2.imwrite(outname, img)
 
 def check_match(path, out):
     os.makedirs(out, exist_ok=True)
