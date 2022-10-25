@@ -16,6 +16,8 @@ from easymocap.mytools.debug_utils import mywarn
 
 def init_intri(path, image):
     camnames = sorted(os.listdir(join(path, image)))
+    if '.DS_Store' in camnames:
+        camnames.remove('.DS_Store')
     cameras = {}
     for ic, cam in enumerate(camnames):
         imagenames = sorted(glob(join(path, image, cam, '*.jpg')))
@@ -74,7 +76,7 @@ def solvePnP(k3d, k2d, K, dist, flag, tryextri=False):
     # print(err)
     return err, rvec, tvec, kpts_repro
 
-def calib_extri(path, image, intriname, image_id):
+def calib_extri(path, image, intriname, image_id, ext, tryfocal = False):
     camnames = sorted(os.listdir(join(path, image)))
     camnames = [c for c in camnames if os.path.isdir(join(path, image, c))]
     if intriname is None:
@@ -91,7 +93,7 @@ def calib_extri(path, image, intriname, image_id):
     # methods = [cv2.SOLVEPNP_ITERATIVE, cv2.SOLVEPNP_P3P, cv2.SOLVEPNP_AP3P, cv2.SOLVEPNP_EPNP, cv2.SOLVEPNP_DLS, cv2.SOLVEPNP_IPPE, cv2.SOLVEPNP_SQPNP]
     methods = [cv2.SOLVEPNP_ITERATIVE]
     for ic, cam in enumerate(camnames):
-        imagenames = sorted(glob(join(path, image, cam, '*{}'.format(args.ext))))
+        imagenames = sorted(glob(join(path, image, cam, '*{}'.format(ext))))
         chessnames = sorted(glob(join(path, 'chessboard', cam, '*.json')))
         # chessname = chessnames[0]
         assert len(chessnames) > 0, cam
@@ -119,7 +121,7 @@ def calib_extri(path, image, intriname, image_id):
             continue
         k3d = k3d[valididx]
         k2d = k2d[valididx]
-        if args.tryfocal:
+        if tryfocal:
             infos = []
             for focal in range(500, 5000, 10):
                 dist = intri[cam]['dist']
@@ -167,4 +169,4 @@ if __name__ == "__main__":
     parser.add_argument('--image_id', type=int, default=0, help='Image id used for extrinsic calibration')
 
     args = parser.parse_args()
-    calib_extri(args.path, args.image, intriname=args.intri, image_id=args.image_id)
+    calib_extri(args.path, args.image, intriname=args.intri, image_id=args.image_id, ext=args.ext)

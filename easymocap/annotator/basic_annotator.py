@@ -165,18 +165,22 @@ class AnnotBase:
         self.isOpen = False
         cv2.destroyWindow(self.name)
         # get the input
-        if key is None:
-            key = get_valid_yn()
-        if key == 'n':
-            return 0
+        # if key is None:
+        #     key = get_valid_yn()
+        # if key == 'n':
+        #     return 0
+        self.save()
+
+    def save(self):
         for frame in tqdm(self.visited_frames, desc='writing'):
             self.dataset.isTmp = True
             _, annname = self.dataset[frame]
             self.dataset.isTmp = False
             _, annname_ = self.dataset[frame]
             if annname is not None:
+                load_annot_to_tmp(annname)
                 shutil.copyfile(annname, annname_)
-        
+
     @property
     def frame(self):
         return self._frame
@@ -227,9 +231,16 @@ class AnnotBase:
         
     def run(self, key=None, noshow=False):
         if key is None:
-            key = chr(get_key())
-        if key in self.register_keys.keys():
-            self.register_keys[key](self, param=self.param)
+            key = get_key()
+
+        key_str = chr(key)
+        if key != 255:
+            if key in self.register_keys.keys():
+                self.param['key'] = key
+                self.register_keys[key](self, param=self.param)
+
+        if key_str in self.register_keys.keys():
+            self.register_keys[key_str](self, param=self.param)
         if not self.isOpen:
             return 0
         if noshow:

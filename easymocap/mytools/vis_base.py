@@ -215,7 +215,7 @@ def plot_keypoints_total(img, annots, scale, pid_offset=0):
             plot_bbox(img, annot['bbox'], pid, scale=scale, vis_id=True)
     return img
 
-def plot_points2d(img, points2d, lines, lw=-1, col=(0, 255, 0), putText=True, style='+'):
+def plot_points2d(img, points2d, lines, lw=-1, putText=True, style='+'):
     # 将2d点画上去
     if points2d.shape[1] == 2:
         points2d = np.hstack([points2d, np.ones((points2d.shape[0], 1))])
@@ -224,20 +224,20 @@ def plot_points2d(img, points2d, lines, lw=-1, col=(0, 255, 0), putText=True, st
     for i, (x, y, v) in enumerate(points2d):
         if v < 0.01:
             continue
-        c = col
+        c = (0, (i * 100) % 255, 255 - (i* 100) % 255)
         if '+' in style:
             plot_cross(img, x, y, width=10, col=c, lw=lw*2)
         if 'o' in style:
             cv2.circle(img, (int(x), int(y)), 10, c, lw*2)
         cv2.circle(img, (int(x), int(y)), lw, c, lw)
         if putText:
-            c = col[::-1]
             font_scale = img.shape[0]/1000
             cv2.putText(img, '{}'.format(i), (int(x), int(y)), cv2.FONT_HERSHEY_SIMPLEX, font_scale, c, 2)
     for i, j in lines:
         if points2d[i][2] < 0.01 or points2d[j][2] < 0.01:
             continue
-        plot_line(img, points2d[i], points2d[j], max(1, lw//2), col)
+        color = tuple(np.random.randint(0, 255, 3).tolist())
+        plot_line(img, points2d[i], points2d[j], max(1, lw//2), color)
 
 row_col_ = {
     2: (2, 1),

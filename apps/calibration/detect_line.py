@@ -57,75 +57,6 @@ def region_of_interest(image, vertices):
     return masked_image
 
 
-def draw_lines(image, lines, color=[255, 0, 0], thickness=2):
-    right_y_set = []
-    right_x_set = []
-    right_slope_set = []
-
-    left_y_set = []
-    left_x_set = []
-    left_slope_set = []
-
-    slope_min = .15  # 斜率低阈值
-    slope_max = .95  # 斜率高阈值
-    middle_x = image.shape[1] / 2  # 图像中线x坐标
-    max_y = image.shape[0]  # 最大y坐标
-
-    results = []
-    for line in lines:
-        for x1, y1, x2, y2 in line:
-            fit = np.polyfit((x1, x2), (y1, y2), 1)  # 拟合成直线
-            slope = fit[0]  # 斜率
-            if slope_min < np.absolute(slope):
-                results.append(line)
-
-            # if slope_min < np.absolute(slope) <= slope_max:
-            # results.append(line)
-
-            # 将斜率大于0且线段X坐标在图像中线右边的点存为右边车道线
-            # if slope > 0 and x1 > middle_x and x2 > middle_x:
-            # right_y_set.append(y1)
-            # right_y_set.append(y2)
-            # right_x_set.append(x1)
-            # right_x_set.append(x2)
-            # right_slope_set.append(slope)
-
-            # 将斜率小于0且线段X坐标在图像中线左边的点存为左边车道线
-            # elif slope < 0 and x1 < middle_x and x2 < middle_x:
-            # left_y_set.append(y1)
-            # left_y_set.append(y2)
-            # left_x_set.append(x1)
-            # left_x_set.append(x2)
-            # left_slope_set.append(slope)
-
-    # 绘制左车道线
-    # if left_y_set:
-    #     lindex = left_y_set.index(min(left_y_set))  # 最高点
-    #     left_x_top = left_x_set[lindex]
-    #     left_y_top = left_y_set[lindex]
-    #     lslope = np.median(left_slope_set)   # 计算平均值
-
-    # 根据斜率计算车道线与图片下方交点作为起点
-    # left_x_bottom = int(left_x_top + (max_y - left_y_top) / lslope)
-
-    # 绘制线段
-    # cv2.line(image, (left_x_bottom, max_y), (left_x_top, left_y_top), color, thickness)
-
-    # 绘制右车道线
-    # if right_y_set:
-    #     rindex = right_y_set.index(min(right_y_set))  # 最高点
-    #     right_x_top = right_x_set[rindex]
-    #     right_y_top = right_y_set[rindex]
-    #     rslope = np.median(right_slope_set)
-
-    # 根据斜率计算车道线与图片下方交点作为起点
-    # right_x_bottom = int(right_x_top + (max_y - right_y_top) / rslope)
-
-    # 绘制线段
-    # cv2.line(image, (right_x_top, right_y_top), (right_x_bottom, max_y), color, thickness)
-    return results
-
-
 def hough_lines(img, rho, theta, threshold, min_line_len, max_line_gap):
     # rho：线段以像素为单位的距离精度
     # theta : 像素以弧度为单位的角度精度(np.pi/180较为合适)
@@ -219,7 +150,7 @@ def process_image(image):
                 if i not in indexs:
                     indexs.append(i)
             elif key == 99:
-                # 99
+                # C
                 if i in indexs:
                     indexs.remove(i)
             elif key == 27:
@@ -241,20 +172,30 @@ def process_image(image):
         medium_x = int((lines[i][0][0] + lines[i][0][2]) / 2)
         medium_Y = int((lines[i][0][1] + lines[i][0][3]) / 2)
         cv2.putText(image, str(i), (medium_x, medium_Y), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
+
         x1 = float(lines[i][0][0])
         y1 = float(lines[i][0][1])
         x2 = float(lines[i][0][2])
         y2 = float(lines[i][0][3])
 
-        arr = sort_points([[x1, y1], [x2, y2]])
-        for ele in arr:
-            results.append(ele)
+        if y1 < y2:
+            temp = x1
+            x1 = x2
+            x2 = temp
+
+            temp = y1
+            y1 = y2
+            y2 = temp
+
+        results.append([x1, y1])
+        results.append([(x1 + x2) / 2, (y1 + y2) / 2])
+        results.append([x2, y2])
+
 
     cv2.imshow('lines', image)
     cv2.waitKey()
 
     cv2.destroyWindow('lines')
-
     return results
 
 

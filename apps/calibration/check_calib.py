@@ -164,7 +164,7 @@ def check_scene(path, out, points3d, lines):
         img = cv2.imread(imgname)
         img = Undistort.image(img, camera['K'], camera['dist'])
         kpts_repro = projectN3(points3d, camera['P'][None, :, :])[0]
-        plot_points2d(img, kpts_repro, lines, col=(0, 0, 255), lw=1, putText=True)
+        plot_points2d(img, kpts_repro, lines, lw=1, putText=True)
         cv2.imshow('vis', img)
         cv2.waitKey(0)
         outname = join(out,  "output/" + cam + '.jpg')

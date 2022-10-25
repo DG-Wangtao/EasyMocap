@@ -5,13 +5,17 @@
   @ LastEditTime: 2021-07-17 15:21:46
   @ FilePath: /EasyMocap/apps/annotation/annot_calib.py
 '''
+import cv2
+
+from apps.calibration.calib_extri import calib_extri
+from apps.calibration.check_calib import load_cube
 from easymocap.annotator.basic_visualize import plot_text, resize_to_screen, vis_line
-from easymocap.mytools.vis_base import plot_point
+from easymocap.mytools.vis_base import plot_point, plot_points2d
 from easymocap.annotator import ImageFolder
 from easymocap.annotator import vis_point
 from easymocap.annotator import AnnotBase
-from easymocap.annotator.file_utils import getFileList
-from easymocap.mytools import read_json, save_json
+from easymocap.annotator.file_utils import getFileList, save_annot
+from easymocap.mytools import read_json, save_json, projectN3, Undistort, read_camera
 from easymocap.mytools import plot_cross, plot_line, get_rgb
 import numpy as np
 from tqdm import tqdm
@@ -38,6 +42,10 @@ class Matcher:
         self.cache_lines = []
         self.cnt = -1
         self.hint()
+        self.args = args
+        self.save_callback = None
+    def set_callback(self, callback):
+        self.save_callback = callback
     
     def hint(self):
         self.cnt = (self.cnt + 1)%self.nJoints
@@ -50,8 +58,47 @@ class Matcher:
             param['annots']['keypoints2d'][self.cnt] = [click[0], click[1], conf]
             param['annots']['visited'] = True
             param['click'] = None
+            if args.cube:
+                self.view_cube(param)
+
         self.hint()
-    
+    def move(self, annotator, param, conf=1.):
+        key = param['key']
+        point = param['annots']['keypoints2d'][self.cnt]
+        # 1 down
+        if key == 1:
+            point[1] = point[1] + 1
+        # 0 up
+        if key == 0:
+            point[1] = point[1] - 1
+        # 2 left
+        if key == 2:
+            point[0] = point[0] - 1
+        # 3 right
+        if key == 3:
+            point[0] = point[0] + 1
+        param['annots']['keypoints2d'][self.cnt] = point
+        param['annots']['visited'] = True
+        param['click'] = None
+
+        if args.cube:
+            self.view_cube(param)
+
+    def view_cube(self, param):
+
+        # 保存改动
+        save_annot(param['annname'], param['annots'])
+        self.save_callback()
+        # 计算外参
+        calib_extri(self.args.path, self.args.image, intriname=self.args.intri, image_id=0, ext=args.ext)
+        # 显示正方体
+        points, lines = load_cube()
+        imgname = param['imgname']
+        paths = imgname.split(os.sep)
+        camera = paths[len(paths) - 2]
+        check_sene(camera, self.args.path, self.args.out, points, lines)
+
+
     def add_conf(self, annotator, param):
         self.add(annotator, param, conf=0.5)
     
@@ -113,6 +160,20 @@ class Matcher:
     def print(self, annotator, **kwargs):
         print(self.annots)
 
+def check_sene(cam, path, out, points3d, lines):
+    cameras = read_camera(join(out, 'intri.yml'), join(out, 'extri.yml'))
+    cameras.pop('basenames')
+    camera = cameras[cam]
+    imgname = join(path, 'images', cam, '{:06d}.jpg'.format(0))
+    assert os.path.exists(imgname), imgname
+    img = cv2.imread(imgname)
+    img = Undistort.image(img, camera['K'], camera['dist'])
+    kpts_repro = projectN3(points3d, camera['P'][None, :, :])[0]
+    plot_points2d(img, kpts_repro, lines, lw=1, putText=True)
+    cv2.imshow('vis', img)
+    cv2.waitKey(0)
+
+
 def create_chessboard(path, keypoints3d, out='annots'):
     keypoints2d = np.zeros((keypoints3d.shape[0], 3))
     imgnames = getFileList(path, ext='.jpg')
@@ -143,14 +204,20 @@ def annot_example(path, args):
         'p': calib.add_point_by_2lines,
         'c': calib.clear_point,
         'C': calib.clear,
+        0: calib.move,
+        1: calib.move,
+        2: calib.move,
+        3: calib.move,
     }
     # construct annotations
     annotator = AnnotBase(
-        dataset=dataset, 
+        dataset=dataset,
         key_funcs=key_funcs,
         vis_funcs=vis_funcs)
+    calib.set_callback(annotator.save)
     while annotator.isOpen:
         annotator.run()
+
 
 if __name__ == "__main__":
     from easymocap.annotator import load_parser, parse_parser
@@ -158,6 +225,12 @@ if __name__ == "__main__":
     parser.add_argument('--pattern', type=lambda x: (int(x.split(',')[0]), int(x.split(',')[1])),
         help='The pattern of the chessboard', default=(9, 6))
     parser.add_argument('--mode', type=str, default='chessboard')
+    # parser.add_argument('--vis', action='store_true')
+    # parser.add_argument('--out', type=str, help='with camera parameters')
+    parser.add_argument('--show', action='store_true')
+    parser.add_argument('--cube', action='store_true')
+    parser.add_argument('--grid', action='store_true')
+    parser.add_argument('--intri', type=str, default=None)
     args = parse_parser(parser)
 
     annot_example(args.path, args)
